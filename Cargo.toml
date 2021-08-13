@@ -1,0 +1,8 @@
+[package]
+name = "pfm"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+anyhow = "1.0.42"
+tokio = { version = "1.9.0", features = ["full"] }
