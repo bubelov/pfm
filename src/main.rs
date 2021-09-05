@@ -70,13 +70,13 @@ async fn main() {
     let args = &args[1..];
 
     match args.first().map(|arg| arg.as_str()) {
-        Some("signup") => signup(&args[1..]).await?,
+        Some("signup") => signup(&args[1..]).await.unwrap(),
         Some("set") => match args.get(1).unwrap_or(&String::new()).as_str() {
-            "currency" => set_currency(&args[2..]).await?,
+            "currency" => set_currency(&args[2..]).await.unwrap(),
             _ => println!("Unknown asset class"),
         },
         Some(_) => println!("Unknown argument"),
-        None => show_total().await?,
+        None => show_total().await.unwrap(),
     };
 }
 
