@@ -1,9 +1,8 @@
 use anyhow::Result;
+use log::debug;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, env, fs::File, io::Write, path::Path};
-use tracing::info;
-use tracing_subscriber::EnvFilter;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct State {
@@ -54,17 +53,12 @@ struct Currency {
 
 #[tokio::main]
 async fn main() {
+    env_logger::init();
+
     if env::var("RUST_BACKTRACE").is_err() {
+        debug!("RUST_BACKTRACE isn't set, defaulting to \"1\"");
         env::set_var("RUST_BACKTRACE", "1");
     }
-
-    if env::var("RUST_LOG").is_err() {
-        env::set_var("RUST_LOG", "info");
-    }
-
-    tracing_subscriber::fmt::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
-        .init();
 
     let args: Vec<String> = env::args().collect();
     let args = &args[1..];
@@ -111,10 +105,8 @@ async fn signup(args: &[String]) -> Result<()> {
 }
 
 async fn set_currency(args: &[String]) -> Result<()> {
-    info!(?args);
     let code = args.get(0).unwrap();
     let amount = args.get(1).unwrap().parse::<f64>()?;
-    info!(?code, ?amount);
 
     let mut state = load_state()?;
     let currency = Currency {
@@ -146,7 +138,6 @@ async fn show_total() -> Result<()> {
         let header_value =
             HeaderValue::from_str(&format!("Bearer {}", &state.auth_token.clone().unwrap().id))?;
         headers.insert(AUTHORIZATION, header_value);
-        info!(?headers);
         let builder = client
             .get(format!(
                 "https://api.easyportfol.io/exchange_rates?quote={}&base=USD",
