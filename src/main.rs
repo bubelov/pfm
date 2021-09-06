@@ -1,4 +1,5 @@
 use anyhow::Result;
+use clap::{App, Arg, SubCommand};
 use log::debug;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use serde::{Deserialize, Serialize};
@@ -53,6 +54,54 @@ struct Currency {
 
 #[tokio::main]
 async fn main() {
+    let matches = App::new("pfm")
+        .version("0.1.0")
+        .author("Igor Bubelov <igor@bubelov.com>")
+        .about("Command line client for pfd")
+        .arg(
+            Arg::with_name("verbose")
+                .short("v")
+                .long("verbose")
+                .multiple(true)
+                .help("Sets the level of verbosity"),
+        )
+        .subcommand(
+            SubCommand::with_name("signup")
+                .about("Creates a new user")
+                .arg(
+                    Arg::with_name("username")
+                        .help("Should be unique")
+                        .required(true),
+                )
+                .arg(
+                    Arg::with_name("password")
+                        .help("Use strong passwords")
+                        .required(true),
+                ),
+        )
+        .subcommand(
+            SubCommand::with_name("set")
+                .about("Sets asset")
+                .arg(
+                    Arg::with_name("symbol")
+                        .help("Ticker symbol or currency code")
+                        .required(true),
+                )
+                .arg(
+                    Arg::with_name("amount")
+                        .help("How much units you have")
+                        .required(true),
+                ),
+        )
+        .get_matches();
+
+    match matches.occurrences_of("verbose") {
+        0 => {}
+        1 => env::set_var("RUST_LOG", "info"),
+        2 => env::set_var("RUST_LOG", "debug"),
+        3 | _ => env::set_var("RUST_LOG", "trace"),
+    }
+
     env_logger::init();
 
     if env::var("RUST_BACKTRACE").is_err() {
@@ -60,24 +109,22 @@ async fn main() {
         env::set_var("RUST_BACKTRACE", "1");
     }
 
-    let args: Vec<String> = env::args().collect();
-    let args = &args[1..];
-
-    match args.first().map(|arg| arg.as_str()) {
-        Some("signup") => signup(&args[1..]).await.unwrap(),
-        Some("set") => match args.get(1).unwrap_or(&String::new()).as_str() {
-            "currency" => set_currency(&args[2..]).await.unwrap(),
-            _ => println!("Unknown asset class"),
-        },
-        Some(_) => println!("Unknown argument"),
-        None => show_total().await.unwrap(),
-    };
+    match matches.subcommand() {
+        ("signup", Some(matches)) => {
+            let username = matches.value_of("username").unwrap();
+            let password = matches.value_of("password").unwrap();
+            signup(username, password).await.unwrap();
+        }
+        ("set", Some(matches)) => {
+            let symbol = matches.value_of("symbol").unwrap();
+            let amount = matches.value_of("amount").unwrap();
+            set_currency(symbol, amount).unwrap();
+        }
+        _ => show_total().await.unwrap(),
+    }
 }
 
-async fn signup(args: &[String]) -> Result<()> {
-    let username = args.get(0).unwrap();
-    let password = args.get(1).unwrap();
-
+async fn signup(username: &str, password: &str) -> Result<()> {
     let mut args = HashMap::new();
     args.insert("username", username);
     args.insert("password", password);
@@ -104,13 +151,13 @@ async fn signup(args: &[String]) -> Result<()> {
     Ok(())
 }
 
-async fn set_currency(args: &[String]) -> Result<()> {
-    let code = args.get(0).unwrap();
-    let amount = args.get(1).unwrap().parse::<f64>()?;
+fn set_currency(code: &str, amount: &str) -> Result<()> {
+    debug!("Setting {} to {}", code, amount);
+    let amount = amount.parse::<f64>()?;
 
     let mut state = load_state()?;
     let currency = Currency {
-        code: code.clone(),
+        code: code.to_string(),
         amount: amount,
     };
     state.portfolio.currencies.push(currency);
